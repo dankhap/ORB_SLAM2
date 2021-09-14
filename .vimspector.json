@@ -1,0 +1,18 @@
+{
+	"configurations": {
+		"Launch": {
+			"adapter": "vscode-cpptools",
+			"configuration": {
+				"request": "launch",
+				"program": "Examples/Monocular/mono_tum",
+				"args": [
+					"Vocabulary/ORBvoc.bin",
+					"Examples/Monocular/TUM1.yaml",
+					"~/Downloads/rgbd_dataset_freiburg1_xyzf"
+				],
+				"externalConsole": false,
+				"stopAtEntry": false
+			}
+		}
+	}
+}
