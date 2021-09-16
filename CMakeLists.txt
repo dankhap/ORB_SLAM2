@@ -71,6 +71,7 @@ src/KeyFrameDatabase.cc
 src/Sim3Solver.cc
 src/Initializer.cc
 src/Viewer.cc
+src/TelloDispatcher.cc
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -80,6 +81,7 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${Pangolin_LIBRARIES}
 ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 ${Boost_LIBRARIES}
+/usr/local/lib/libctello.so
 )
 
 # Build examples
@@ -102,9 +104,13 @@ add_executable(mono_tum
 Examples/Monocular/mono_tum.cc)
 target_link_libraries(mono_tum ${PROJECT_NAME})
 
-add_executable(mono_stream
-Examples/Monocular/mono_stream.cc)
-target_link_libraries(mono_stream ${PROJECT_NAME})
+add_executable(mono_tello
+Examples/Monocular/mono_tello.cc)
+target_link_libraries(mono_tello ${PROJECT_NAME})
+
+# add_executable(mono_stream
+# Examples/Monocular/mono_stream.cc)
+# target_link_libraries(mono_stream ${PROJECT_NAME})
 
 add_executable(mono_kitti
 Examples/Monocular/mono_kitti.cc)
