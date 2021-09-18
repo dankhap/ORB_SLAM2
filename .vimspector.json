@@ -1,0 +1,18 @@
+{
+	"configurations": {
+		"Launch": {
+			"adapter": "vscode-cpptools",
+			"configuration": {
+				"request": "launch",
+				"program": "${workspaceRoot}/Examples/Monocular/mono_tello",
+				"args": [
+					"${workspaceRoot}/Vocabulary/ORBvoc.bin",
+					"${workspaceRoot}/Examples/Monocular/TUM1.yaml",
+					"true"
+				],
+				"externalConsole": false,
+				"stopAtEntry": true
+			}
+		}
+	}
+}
