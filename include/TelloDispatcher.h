@@ -1,22 +1,43 @@
-#include "ctello.h"
 #include <Converter.h>
-#include <System.h>
-#include <boost/interprocess/ipc/message_queue.hpp>
+#include <Queue.h>
+#include <iostream>
 #include <thread>
 
-using namespace std;
-using namespace ctello;
+namespace ctello {
+class Tello {
+public:
+  bool Bind() {
+    std::cout << "bind finished" << std::endl;
+    return true;
+  }
 
-enum Mode { EXPLORE = 0, NAVIGATE };
+  void SendCommand(std::string cmd) {
+    std::cout << "sent command: " << cmd << std::endl;
+  }
+  bool ReceiveResponse() {
+    std::cout << "received command" << std::endl;
+    return true;
+  }
+};
+} // namespace ctello
+namespace ORB_SLAM2 {
+
+class System;
+}
+
+enum Mode { CREATED = 0, STARTED, EXPLORE, NAVIGATE };
 
 class TelloDispatcher {
 public:
-  TelloDispatcher(Tello &tello, ORB_SLAM2::System &slam);
+  TelloDispatcher(ctello::Tello *tello, ORB_SLAM2::System *slam);
   void Run();
   Mode getState() { return mState; }
+  void setState(Mode state);
+
+  Queue<std::string> messageQueue;
 
 private:
-  Tello &mTello;
-  ORB_SLAM2::System &mSLAM;
+  ctello::Tello *mTello;
+  ORB_SLAM2::System *mSLAM;
   Mode mState;
 };

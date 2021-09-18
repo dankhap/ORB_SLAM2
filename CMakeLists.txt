@@ -9,6 +9,7 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -O0 -g  ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O0 -g ")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Check C++11 or C++0x support
 include(CheckCXXCompilerFlag)
@@ -39,7 +40,7 @@ endif()
 find_package(Pangolin REQUIRED)
 find_package(Boost  1.54.0  	     # Minimum or EXACT version e.g. 1.36.0
   REQUIRED             					# Fail with error if Boost is not found
-  COMPONENTS serialization 				# Boost libraries by their canonical name
+  COMPONENTS serialization thread 				# Boost libraries by their canonical name
   )          
 
 include_directories(

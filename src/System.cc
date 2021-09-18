@@ -22,7 +22,7 @@
 #include "Converter.h"
 #include <iomanip>
 #include <pangolin/pangolin.h>
-#include <thread>
+// #include <thread>
 
 bool has_suffix(const std::string &str, const std::string &suffix) {
   std::size_t index = str.find(suffix, str.size() - suffix.size());

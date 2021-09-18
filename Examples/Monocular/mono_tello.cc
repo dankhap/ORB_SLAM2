@@ -26,16 +26,19 @@
 #include <algorithm>
 #include <chrono>
 #include <fstream>
-#include <iostream>
+#include <sstream>
+// #include <iostream>
 #include <unistd.h>
-
 // #include "ctello.h"
 #include <Converter.h>
 #include <System.h>
 #include <TelloDispatcher.h>
 #include <thread>
 
-const char *const TELLO_STREAM_URL{"udp://0.0.0.0:11111"};
+// const char *const TELLO_STREAM_URL{"udp://0.0.0.0:11111"}; // real tello info
+// const char *const TELLO_STREAM_URL{"udp://192.168.1.13:11111"};
+// const char *const TELLO_STREAM_URL{"http://192.168.1.13:8080"};
+const char *const TELLO_STREAM_URL{"http://192.168.1.13/playlist.m3u:8080"};
 using namespace std;
 using namespace ctello;
 
@@ -43,6 +46,23 @@ using cv::CAP_FFMPEG;
 using cv::imshow;
 using cv::VideoCapture;
 using cv::waitKey;
+void addExplorationCommands(TelloDispatcher *tello) {
+
+  vector<string> commands{"takeoff", "up 10"};
+  int dirNum = 8;
+  int degInc = 360 / dirNum;
+  for (int i = 0; i < dirNum; i++) {
+    commands.push_back("forward 20");
+    commands.push_back("back 20");
+    ostringstream oss;
+    oss << "cw " << degInc;
+    commands.push_back(oss.str());
+  }
+  commands.push_back("#cstate");
+  for (string i : commands) {
+    tello->messageQueue.push(i);
+  }
+}
 
 int main(int argc, char **argv) {
   if (argc < 3) {
@@ -54,24 +74,22 @@ int main(int argc, char **argv) {
   }
   bool reuseMap = argc == 4;
   // bind to tello
-  Tello tello{};
+  Tello tello;
   if (!tello.Bind()) {
     cerr << "Unable to connect to tello" << endl;
   }
   TelloDispatcher *oDispatcher;
   bool taskFinished{false};
-
-  VideoCapture capture{TELLO_STREAM_URL, CAP_FFMPEG};
-  int index{0};
-  bool busy{false};
+  bool sentExploration{false};
+  VideoCapture capture{TELLO_STREAM_URL, cv::CAP_ANY}; // cv::CAP_FFMPEG};
   // Create SLAM system. It initializes all system threads and gets ready to
   // process frames.
   ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::MONOCULAR, true,
-                         true);
-
+                         reuseMap);
+  // ORB_SLAM2::System *SLAM = nullptr;
   std::thread *mptDispatcher;
   // Initialize the Local Mapping thread and launch
-  oDispatcher = new TelloDispatcher(tello, SLAM);
+  oDispatcher = new TelloDispatcher(&tello, &SLAM);
   mptDispatcher = new thread(&TelloDispatcher::Run, oDispatcher);
 
   // Vector for tracking time statistics
@@ -99,8 +117,12 @@ int main(int argc, char **argv) {
             .count();
     double tframe = microsecondsUTC / 1000000.0;
     // Pass the image to the SLAM system
-    SLAM.TrackMonocular(im, tframe);
-
+    imshow("frame", im);
+    char c = (char)waitKey(25);
+    if (c == 27)
+      break;
+    // SLAM.TrackMonocular(im, tframe);
+    sleep(1);
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
 
     double ttrack =
@@ -109,14 +131,22 @@ int main(int argc, char **argv) {
 
     vTimesTrack.push_back(ttrack);
 
-    if (oDispatcher->getState() == Mode::NAVIGATE) {
+    if (!sentExploration && oDispatcher->getState() == Mode::EXPLORE &&
+        !reuseMap) {
       // calculate direction
+      cout << "starting exploring sequence" << endl;
+      addExplorationCommands(oDispatcher);
+      sentExploration = true;
+    } else if (oDispatcher->getState() == Mode::NAVIGATE) {
+      cout << "calculating directions" << endl;
+      SLAM.SaveMap("Slam_latest_Map.bin");
     }
   }
 
   // Stop all threads
-  SLAM.Shutdown();
-
+  // SLAM.Shutdown();
+  capture.release();
+  cv::destroyAllWindows();
   // Tracking time statistics
   sort(vTimesTrack.begin(), vTimesTrack.end());
   float totaltime = 0;

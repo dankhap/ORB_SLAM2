@@ -43,7 +43,6 @@
 #include "Tracking.h"
 #include "Viewer.h"
 
-using namespace cv;
 namespace ORB_SLAM2 {
 
 class Viewer;
@@ -126,10 +125,6 @@ public:
   // See format details at:
   // http://www.cvlibs.net/datasets/kitti/eval_odometry.php
   void SaveTrajectoryKITTI(const string &filename);
-
-  // TODO: Save/Load functions
-  // SaveMap(const string &filename);
-  // LoadMap(const string &filename);
 
   // Tracker. It receives a frame and computes the associated camera pose.
   // It also decides when to insert a new keyframe, create some new MapPoints
