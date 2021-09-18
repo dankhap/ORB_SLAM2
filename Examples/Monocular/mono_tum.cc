@@ -51,7 +51,8 @@ int main(int argc, char **argv) {
 
   // Create SLAM system. It initializes all system threads and gets ready to
   // process frames.
-  ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::MONOCULAR, true);
+  ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::MONOCULAR, true,
+                         true);
   // Vector for tracking time statistics
   vector<float> vTimesTrack;
   vTimesTrack.resize(nImages);
@@ -62,10 +63,16 @@ int main(int argc, char **argv) {
   // SLAM.ActivateLocalizationMode();
   // Main loop
   cv::Mat im;
+  // Adding empty elements to lists to avoid segmentation fault when tracking is
+  // lost at the beginning of the loading
+  SLAM.mpTracker->mlRelativeFramePoses.push_back(cv::Mat::eye(4, 4, CV_32F));
+  SLAM.mpTracker->mlpReferences.push_back(NULL);
+  SLAM.mpTracker->mlFrameTimes.push_back(0.0);
+  SLAM.mpTracker->mlbLost.push_back(true);
   for (int ni = 0; ni < nImages; ni++) {
     // Read image from file
     im = cv::imread(string(argv[3]) + "/" + vstrImageFilenames[ni],
-                    CV_LOAD_IMAGE_UNCHANGED);
+                    cv::IMREAD_UNCHANGED);
     double tframe = vTimestamps[ni];
 
     if (im.empty()) {
