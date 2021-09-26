@@ -1,5 +1,9 @@
+#ifndef ROTCALIPERS_H
+#define ROTCALIPERS_H
+
 #include <opencv2/core/utility.hpp>
 #include <opencv2/imgproc.hpp>
+#include <pcl/point_types.h>
 
 struct MinAreaState {
   int bottom;
@@ -31,7 +35,7 @@ enum { CALIPERS_MAXHEIGHT = 0, CALIPERS_MINAREARECT = 1, CALIPERS_MAXDIST = 2 };
  //                    In case CV_CALIPERS_MINAREARECT
  //                    ((CvPoint2D32f*)out)[0] - corner
  //                    ((CvPoint2D32f*)out)[1] - vector1
- //                    ((CvPoint2D32f*)out)[0] - corner2
+ //                    ((CvPoint2D32f*)out)[2] - corner2
  //
  //                      ^
  //                      |
@@ -45,14 +49,12 @@ enum { CALIPERS_MAXHEIGHT = 0, CALIPERS_MINAREARECT = 1, CALIPERS_MAXDIST = 2 };
  //    Notes:
  //F*/
 
-struct Point2f {
-  float x;
-  float y;
-};
-
+namespace cv {
 /* we will use usual cartesian coordinates */
-static void rotatingCalipers(const Point2f *points, int n, int mode,
-                             float *out);
-cv::RotatedRect minAreaRect(cv::InputArray _points);
+void rotatingCalipers(const Point2f *points, int n, int mode, float *out);
 
-void cv::boxPoints(cv::RotatedRect box, OutputArray _pts);
+void minAreaRect(Point2f *hpoints, int n, Point2f *out3);
+void boxPoints(RotatedRect box, OutputArray _pts);
+} // namespace cv
+
+#endif /* ROTCALIPERS_H */

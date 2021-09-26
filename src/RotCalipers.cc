@@ -1,4 +1,5 @@
 #include "RotCalipers.h"
+#include <exception>
 
 /*F///////////////////////////////////////////////////////////////////////////////////////
  //    Name:    rotatingCalipers
@@ -19,7 +20,7 @@
  //                    In case CV_CALIPERS_MINAREARECT
  //                    ((CvPoint2D32f*)out)[0] - corner
  //                    ((CvPoint2D32f*)out)[1] - vector1
- //                    ((CvPoint2D32f*)out)[0] - corner2
+ //                    ((CvPoint2D32f*)out)[2] - vector2
  //
  //                      ^
  //                      |
@@ -32,24 +33,45 @@
  //    Returns:
  //    Notes:
  //F*/
+static void rotate90CCW(const cv::Point2f &in, cv::Point2f &out) {
+  out.x = -in.y;
+  out.y = in.x;
+}
+
+static void rotate90CW(const cv::Point2f &in, cv::Point2f &out) {
+  out.x = in.y;
+  out.y = -in.x;
+}
+
+static void rotate180(const cv::Point2f &in, cv::Point2f &out) {
+  out.x = -in.x;
+  out.y = -in.y;
+}
+
+/* return true if first vector is to the right (clockwise) of the second */
+static bool firstVecIsRight(const cv::Point2f &vec1, const cv::Point2f &vec2) {
+  cv::Point2f tmp;
+  rotate90CW(vec1, tmp);
+  return tmp.x * vec2.x + tmp.y * vec2.y < 0;
+}
 
 /* we will use usual cartesian coordinates */
-static void rotatingCalipers(const Point2f *points, int n, int mode,
-                             float *out) {
+void cv::rotatingCalipers(const Point2f *points, int n, int mode, float *out) {
   float minarea = FLT_MAX;
   float max_dist = 0;
   char buffer[32] = {};
   int i, k;
-  cv::AutoBuffer<float> abuf(n * 3);
-  float *inv_vect_length = abuf;
+  AutoBuffer<float> abuf(n * 3);
+  float *inv_vect_length = abuf.data();
   Point2f *vect = (Point2f *)(inv_vect_length + n);
   int left = 0, bottom = 0, right = 0, top = 0;
   int seq[4] = {-1, -1, -1, -1};
+  Point2f rot_vect[4];
 
   /* rotating calipers sides will always have coordinates
-   (a,b) (-b,a) (-a,-b) (b -a)
+   (a,b) (-b,a) (-a,-b) (b, -a)
    */
-  /* this is a first base bector (a,b) initialized by (1,0) */
+  /* this is a first base vector (a,b) initialized by (1,0) */
   float orientation = 0;
   float base_a;
   float base_b = 0;
@@ -120,29 +142,19 @@ static void rotatingCalipers(const Point2f *points, int n, int mode,
 
   /* all of edges will be checked while rotating calipers by 90 degrees */
   for (k = 0; k < n; k++) {
-    /* sinus of minimal angle */
-    /*float sinus;*/
-
-    /* compute cosine of angle between calipers side and polygon edge */
-    /* dp - dot product */
-    float dp0 = base_a * vect[seq[0]].x + base_b * vect[seq[0]].y;
-    float dp1 = -base_b * vect[seq[1]].x + base_a * vect[seq[1]].y;
-    float dp2 = -base_a * vect[seq[2]].x - base_b * vect[seq[2]].y;
-    float dp3 = base_b * vect[seq[3]].x - base_a * vect[seq[3]].y;
-
-    float cosalpha = dp0 * inv_vect_length[seq[0]];
-    float maxcos = cosalpha;
-
     /* number of calipers edges, that has minimal angle with edge */
     int main_element = 0;
 
-    /* choose minimal angle */
-    cosalpha = dp1 * inv_vect_length[seq[1]];
-    maxcos = (cosalpha > maxcos) ? (main_element = 1, cosalpha) : maxcos;
-    cosalpha = dp2 * inv_vect_length[seq[2]];
-    maxcos = (cosalpha > maxcos) ? (main_element = 2, cosalpha) : maxcos;
-    cosalpha = dp3 * inv_vect_length[seq[3]];
-    maxcos = (cosalpha > maxcos) ? (main_element = 3, cosalpha) : maxcos;
+    /* choose minimum angle between calipers side and polygon edge by dot
+     * product sign */
+    rot_vect[0] = vect[seq[0]];
+    rotate90CW(vect[seq[1]], rot_vect[1]);
+    rotate180(vect[seq[2]], rot_vect[2]);
+    rotate90CCW(vect[seq[3]], rot_vect[3]);
+    for (i = 1; i < 4; i++) {
+      if (firstVecIsRight(rot_vect[i], rot_vect[main_element]))
+        main_element = i;
+    }
 
     /*rotate calipers*/
     {
@@ -168,7 +180,8 @@ static void rotatingCalipers(const Point2f *points, int n, int mode,
         base_b = lead_x;
         break;
       default:
-        CV_Error(CV_StsError, "main_element should be 0, 1, 2 or 3");
+        // CV_Error(CV_StsError, "main_element should be 0, 1, 2 or 3");
+        throw std::logic_error("main_element should be 0, 1, 2 or 3");
       }
     }
     /* change base point of main edge */
@@ -177,7 +190,7 @@ static void rotatingCalipers(const Point2f *points, int n, int mode,
 
     switch (mode) {
     case CALIPERS_MAXHEIGHT: {
-      /* now main element lies on edge alligned to calipers side */
+      /* now main element lies on edge aligned to calipers side */
 
       /* find opposite element i.e. transform  */
       /* 0->2, 1->3, 2->0, 3->1                */
@@ -268,24 +281,11 @@ static void rotatingCalipers(const Point2f *points, int n, int mode,
   }
 }
 
-cv::RotatedRect cv::minAreaRect(InputArray _points) {
-  Mat hull;
-  Point2f out[3];
+void cv::minAreaRect(Point2f *hpoints, int n, Point2f *out) {
   RotatedRect box;
 
-  convexHull(_points, hull, true, true);
-
-  if (hull.depth() != CV_32F) {
-    Mat temp;
-    hull.convertTo(temp, CV_32F);
-    hull = temp;
-  }
-
-  int n = hull.checkVector(2);
-  const Point2f *hpoints = (const Point2f *)hull.data;
-
   if (n > 2) {
-    rotatingCalipers(hpoints, n, CALIPERS_MINAREARECT, (float *)out);
+    cv::rotatingCalipers(hpoints, n, CALIPERS_MINAREARECT, (float *)out);
     box.center.x = out[0].x + (out[1].x + out[2].x) * 0.5f;
     box.center.y = out[0].y + (out[1].y + out[2].y) * 0.5f;
     box.size.width = (float)std::sqrt((double)out[1].x * out[1].x +
@@ -305,9 +305,6 @@ cv::RotatedRect cv::minAreaRect(InputArray _points) {
     if (n == 1)
       box.center = hpoints[0];
   }
-
-  box.angle = (float)(box.angle * 180 / CV_PI);
-  return box;
 }
 
 void cv::boxPoints(cv::RotatedRect box, OutputArray _pts) {
