@@ -1,5 +1,6 @@
 #include "RotCalipers.h"
 #include <exception>
+#include <iostream>
 
 /*F///////////////////////////////////////////////////////////////////////////////////////
  //    Name:    rotatingCalipers
@@ -211,8 +212,8 @@ void cv::rotatingCalipers(const Point2f *points, int n, int mode, float *out) {
     case CALIPERS_MINAREARECT:
       /* find area of rectangle */
       {
-        float height;
-        float area;
+        float height = 0;
+        float area = 0;
 
         /* find vector left-right */
         float dx = points[seq[1]].x - points[seq[3]].x;
@@ -229,6 +230,9 @@ void cv::rotatingCalipers(const Point2f *points, int n, int mode, float *out) {
         height = -dx * base_b + dy * base_a;
 
         area = width * height;
+        if (area == 0)
+          continue;
+
         if (area <= minarea) {
           float *buf = (float *)buffer;
 
@@ -286,6 +290,7 @@ void cv::minAreaRect(Point2f *hpoints, int n, Point2f *out) {
 
   if (n > 2) {
     cv::rotatingCalipers(hpoints, n, CALIPERS_MINAREARECT, (float *)out);
+
     box.center.x = out[0].x + (out[1].x + out[2].x) * 0.5f;
     box.center.y = out[0].y + (out[1].y + out[2].y) * 0.5f;
     box.size.width = (float)std::sqrt((double)out[1].x * out[1].x +
