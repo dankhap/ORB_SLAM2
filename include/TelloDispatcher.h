@@ -29,7 +29,16 @@ public:
 // }
 using namespace ctello;
 
-enum Mode { CREATED = 0, READY, EXPLORE_COMPLETE, EXIT_FOUND, FINISH, END };
+enum Mode {
+  CREATED = 0,
+  READY,
+  EXPLORING,
+  EXPLORE_COMPLETE,
+  EXIT_MAPPING,
+  EXIT_FOUND,
+  FINISH,
+  END
+};
 
 class TelloDispatcher {
 public:

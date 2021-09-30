@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
   bool sentExploration{false};
   // Create SLAM system. It initializes all system threads and gets ready to
   // process frames.
-  ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::MONOCULAR, false,
+  ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::MONOCULAR, true,
                          reuseMap);
   std::atomic<int> busy = Mode::CREATED;
   std::thread *mptDispatcher;
@@ -119,20 +119,20 @@ int main(int argc, char **argv) {
     }
     cv::Mat sim;
     cv::resize(im, sim, cv::Size(frame_width, frame_height));
-    imshow("rec", sim);
+    /* imshow("rec", sim);
     char c = (char)waitKey(1);
     if (c == 27)
-      break;
+      break; */
 
-    video.write(im);
+    // video.write(im);
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-    /* auto microsecondsUTC =
+    auto microsecondsUTC =
         std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch())
-            .count(); */
-    // double tframe = microsecondsUTC / 1000000.0;
+            .count();
+    double tframe = microsecondsUTC / 1000000.0;
     // Pass the image to the SLAM system
-    // SLAM.TrackMonocular(sim, tframe);
+    SLAM.TrackMonocular(sim, tframe);
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
 
     double ttrack =
@@ -143,18 +143,22 @@ int main(int argc, char **argv) {
     int cState = oDispatcher->getState();
     switch (cState) {
     case Mode::READY:
+      cout << "ready, sending exploration commands..." << endl;
       oDispatcher->addExplorationCommands();
       break;
     case Mode::EXPLORE_COMPLETE:
+      cout << "exploration finished, calculating map" << endl;
       SLAM.DeactivateLocalizationMode();
       SLAM.SaveMap("Slam_latest_Map_tello.bin");
       oDispatcher->startExitDiscovery();
       break;
     case Mode::EXIT_FOUND:
+      cout << "exit found navigating..." << endl;
       exitPoint = oDispatcher->getExitPos();
       oDispatcher->navigateToExit(exitPoint);
       break;
     case Mode::END:
+      cout << "navigation ended..." << endl;
       taskFinished = true;
       break;
     };

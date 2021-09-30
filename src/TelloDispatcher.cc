@@ -55,15 +55,14 @@ void TelloDispatcher::Run() {
     cout << "got command: " << command << endl;
 
     if (command[0] == '#') {
-      int state = stoi(command.substr(1));
-
+      // int state = stoi(command.substr(1));
+      int state = (int)Mode::FINISH;
       cout << "transition to state: " << state << endl;
       // finished explore state, move to navigate state and clean command
       // queue
       setState(state);
       while (messageQueue.tryPop(command))
         ;
-      continue;
     } else {
       // regular command, send and wait completion
       mTello->SendCommand(command);
@@ -94,10 +93,11 @@ void TelloDispatcher::addExplorationCommands() {
     oss << "cw " << degInc;
     commands.push_back(oss.str());
   }
-  commands.push_back("#cstate");
+  commands.push_back("#3");
   for (string i : commands) {
     messageQueue.push(i);
   }
+  *mState = (int)Mode::EXPLORING;
 }
 
 Eigen::Vector4f TelloDispatcher::getExitPos() {
