@@ -29,6 +29,7 @@ endif()
 
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 set(VTK_DIR /usr/local/lib/cmake/vtk-9.0/)
+find_package(VTK REQUIRED)
 find_package(OpenCV 4.3 QUIET)
 if(NOT OpenCV_FOUND)
    find_package(OpenCV 2.4.3 QUIET)

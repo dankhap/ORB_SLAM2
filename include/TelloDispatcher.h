@@ -1,10 +1,17 @@
-#include <Converter.h>
-#include <Queue.h>
+#ifndef TELLO_DISPATCHER_H
+#define TELLO_DISPATCHER_H
+
+#include <Eigen/Dense>
+#include <atomic>
+#include <ctello.h>
 #include <iostream>
 #include <thread>
 
-namespace ctello {
-class Tello {
+#include <Converter.h>
+#include <Queue.h>
+#include <System.h>
+// namespgace ctello {
+/* class Tello {
 public:
   bool Bind() {
     std::cout << "bind finished" << std::endl;
@@ -18,26 +25,30 @@ public:
     std::cout << "received command" << std::endl;
     return true;
   }
-};
-} // namespace ctello
-namespace ORB_SLAM2 {
+}; */
+// }
+using namespace ctello;
 
-class System;
-}
-
-enum Mode { CREATED = 0, STARTED, EXPLORE, NAVIGATE };
+enum Mode { CREATED = 0, READY, EXPLORE_COMPLETE, EXIT_FOUND, FINISH, END };
 
 class TelloDispatcher {
 public:
-  TelloDispatcher(ctello::Tello *tello, ORB_SLAM2::System *slam);
+  TelloDispatcher(ctello::Tello *tello, ORB_SLAM2::System *slam,
+                  std::atomic<int> *state);
+  void addExplorationCommands();
+  void startExitDiscovery();
   void Run();
-  Mode getState() { return mState; }
-  void setState(Mode state);
+  int getState() { return *mState; }
+  void setState(int state);
 
+  Eigen::Vector4f getExitPos();
+  void navigateToExit(Eigen::Vector4f exit);
   Queue<std::string> messageQueue;
 
 private:
   ctello::Tello *mTello;
   ORB_SLAM2::System *mSLAM;
-  Mode mState;
+  std::atomic<int> *mState;
 };
+
+#endif

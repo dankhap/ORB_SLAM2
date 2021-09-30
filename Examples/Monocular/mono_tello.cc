@@ -26,6 +26,8 @@
 #include <algorithm>
 #include <chrono>
 #include <fstream>
+#include <opencv2/videoio.hpp>
+#include <ostream>
 #include <sstream>
 // #include <iostream>
 #include <unistd.h>
@@ -35,34 +37,20 @@
 #include <TelloDispatcher.h>
 #include <thread>
 
-// const char *const TELLO_STREAM_URL{"udp://0.0.0.0:11111"}; // real tello info
+const char *const TELLO_STREAM_URL{
+    "udp://0.0.0.0:11111?overrun_nonfatal=1&fifo_size=50000000"}; // real tello
+                                                                  // info
 // const char *const TELLO_STREAM_URL{"udp://192.168.1.13:11111"};
 // const char *const TELLO_STREAM_URL{"http://192.168.1.13:8080"};
-const char *const TELLO_STREAM_URL{"http://192.168.1.13/playlist.m3u:8080"};
+// const char *const TELLO_STREAM_URL{"http://192.168.1.13/playlist.m3u:8080"};
 using namespace std;
 using namespace ctello;
 
 using cv::CAP_FFMPEG;
 using cv::imshow;
 using cv::VideoCapture;
+using cv::VideoWriter;
 using cv::waitKey;
-void addExplorationCommands(TelloDispatcher *tello) {
-
-  vector<string> commands{"takeoff", "up 10"};
-  int dirNum = 8;
-  int degInc = 360 / dirNum;
-  for (int i = 0; i < dirNum; i++) {
-    commands.push_back("forward 20");
-    commands.push_back("back 20");
-    ostringstream oss;
-    oss << "cw " << degInc;
-    commands.push_back(oss.str());
-  }
-  commands.push_back("#cstate");
-  for (string i : commands) {
-    tello->messageQueue.push(i);
-  }
-}
 
 int main(int argc, char **argv) {
   if (argc < 3) {
@@ -81,22 +69,36 @@ int main(int argc, char **argv) {
   TelloDispatcher *oDispatcher;
   bool taskFinished{false};
   bool sentExploration{false};
-  VideoCapture capture{TELLO_STREAM_URL, cv::CAP_ANY}; // cv::CAP_FFMPEG};
   // Create SLAM system. It initializes all system threads and gets ready to
   // process frames.
-  ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::MONOCULAR, true,
+  ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::MONOCULAR, false,
                          reuseMap);
-  // ORB_SLAM2::System *SLAM = nullptr;
+  std::atomic<int> busy = Mode::CREATED;
   std::thread *mptDispatcher;
   // Initialize the Local Mapping thread and launch
-  oDispatcher = new TelloDispatcher(&tello, &SLAM);
+  oDispatcher = new TelloDispatcher(&tello, &SLAM, &busy);
   mptDispatcher = new thread(&TelloDispatcher::Run, oDispatcher);
 
   // Vector for tracking time statistics
   vector<float> vTimesTrack(1000);
+  int state;
+  do {
+    state = oDispatcher->getState();
+    cout << "checking busy: " << state << endl;
+    sleep(1);
+  } while (state == Mode::CREATED);
 
+  cout << "starting capture..." << endl;
+  VideoCapture capture{TELLO_STREAM_URL, cv::CAP_FFMPEG}; // cv::CAP_FFMPEG};
+  capture.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
+  capture.set(cv::CAP_PROP_FRAME_WIDTH, 640);
+  int frame_width = 640;
+  int frame_height = 480;
+  VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'),
+                    30, cv::Size(frame_width, frame_height));
   cout << endl << "-------" << endl;
-  cout << "Start processing sequence ..." << endl;
+  cout << "Start processing sequence ... requested " << frame_width << " x "
+       << frame_height << endl;
   // Main loop
   cv::Mat im;
   // Adding empty elements to lists to avoid segmentation fault when tracking is
@@ -105,24 +107,32 @@ int main(int argc, char **argv) {
   SLAM.mpTracker->mlpReferences.push_back(NULL);
   SLAM.mpTracker->mlFrameTimes.push_back(0.0);
   SLAM.mpTracker->mlbLost.push_back(true);
+  sentExploration = true;
+  Eigen::Vector4f exitPoint = Eigen::Vector4f::Zero();
   while (!taskFinished) {
     // Read image from file
     //
-    capture >> im;
-
-    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-    auto microsecondsUTC =
-        std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch())
-            .count();
-    double tframe = microsecondsUTC / 1000000.0;
-    // Pass the image to the SLAM system
-    imshow("frame", im);
-    char c = (char)waitKey(25);
+    if (sentExploration) {
+      do {
+        capture >> im;
+      } while (im.empty());
+    }
+    cv::Mat sim;
+    cv::resize(im, sim, cv::Size(frame_width, frame_height));
+    imshow("rec", sim);
+    char c = (char)waitKey(1);
     if (c == 27)
       break;
-    // SLAM.TrackMonocular(im, tframe);
-    sleep(1);
+
+    video.write(im);
+    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    /* auto microsecondsUTC =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::system_clock::now().time_since_epoch())
+            .count(); */
+    // double tframe = microsecondsUTC / 1000000.0;
+    // Pass the image to the SLAM system
+    // SLAM.TrackMonocular(sim, tframe);
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
 
     double ttrack =
@@ -130,21 +140,30 @@ int main(int argc, char **argv) {
             .count();
 
     vTimesTrack.push_back(ttrack);
-
-    if (!sentExploration && oDispatcher->getState() == Mode::EXPLORE &&
-        !reuseMap) {
-      // calculate direction
-      cout << "starting exploring sequence" << endl;
-      addExplorationCommands(oDispatcher);
-      sentExploration = true;
-    } else if (oDispatcher->getState() == Mode::NAVIGATE) {
-      cout << "calculating directions" << endl;
-      SLAM.SaveMap("Slam_latest_Map.bin");
-    }
+    int cState = oDispatcher->getState();
+    switch (cState) {
+    case Mode::READY:
+      oDispatcher->addExplorationCommands();
+      break;
+    case Mode::EXPLORE_COMPLETE:
+      SLAM.DeactivateLocalizationMode();
+      SLAM.SaveMap("Slam_latest_Map_tello.bin");
+      oDispatcher->startExitDiscovery();
+      break;
+    case Mode::EXIT_FOUND:
+      exitPoint = oDispatcher->getExitPos();
+      oDispatcher->navigateToExit(exitPoint);
+      break;
+    case Mode::END:
+      taskFinished = true;
+      break;
+    };
   }
 
   // Stop all threads
-  // SLAM.Shutdown();
+  cout << "writing video" << endl;
+  SLAM.Shutdown();
+  video.release();
   capture.release();
   cv::destroyAllWindows();
   // Tracking time statistics
@@ -161,6 +180,6 @@ int main(int argc, char **argv) {
   // Save camera trajectory
   /* SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
   SLAM.SaveMap("Slam_latest_Map.bin");
- */
+  */
   return 0;
 }
