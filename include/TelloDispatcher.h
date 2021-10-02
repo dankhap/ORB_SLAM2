@@ -8,6 +8,7 @@
 #include <thread>
 
 #include <Converter.h>
+#include <ExitMapper.h>
 #include <Queue.h>
 #include <System.h>
 // namespgace ctello {
@@ -27,7 +28,9 @@ public:
   }
 }; */
 // }
+
 using namespace ctello;
+class MyRotatedRect;
 
 enum Mode {
   CREATED = 0,
@@ -36,6 +39,8 @@ enum Mode {
   EXPLORE_COMPLETE,
   EXIT_MAPPING,
   EXIT_FOUND,
+  RESTARTING,
+  NAVIGATING,
   FINISH,
   END
 };
@@ -49,15 +54,24 @@ public:
   void Run();
   int getState() { return *mState; }
   void setState(int state);
-
+  void sendStateMessage(int s);
   Eigen::Vector4f getExitPos();
   void navigateToExit(Eigen::Vector4f exit);
+  void setExit(Eigen::Vector4f exit);
+  void setExitMapping(MyRotatedRect *room, Eigen::Vector4f *exitPoint);
+  ~TelloDispatcher();
   Queue<std::string> messageQueue;
 
 private:
   ctello::Tello *mTello;
   ORB_SLAM2::System *mSLAM;
   std::atomic<int> *mState;
+  Eigen::Vector4f *mExit;
+  MyRotatedRect *mRect;
+  float mDestToTarget;
+
+  void addNavigationCommands();
+  bool isArrived();
 };
 
 #endif

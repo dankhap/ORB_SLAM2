@@ -32,6 +32,10 @@ int removeOnRectPoints(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloudloud,
                        pcl::PointCloud<pcl::PointXYZ>::ConstPtr outCloud) {
   return 0;
 }
+
+Eigen::Vector4f *ExitMapper::getExitPoint() { return mExit; }
+MyRotatedRect *ExitMapper::getRoomRect() { return mRect; }
+
 pcl::visualization::PCLVisualizer::Ptr
 shapesVis(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud,
           pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr coloredCloud,
@@ -227,16 +231,13 @@ MyRotatedRect getMinRect(pcl::PointCloud<PointXYZ>::Ptr ch) {
 
 void ExitMapper::SetCloud(vector<ORB_SLAM2::MapPoint *> points) {
 
-  getPoints(points, cloud);
+  getPoints(points, mCloud);
 }
 
-ExitMapper::ExitMapper() {
-  cloud = PointCloud<PointXYZ>::Ptr(new PointCloud<PointXYZ>());
-}
+bool ExitMapper::MappingRequested() { return *mMappingRequested; }
 
-void ExitMapper::Run() {}
-
-pcl::PointXYZ ExitMapper::FindExit() {
+void ExitMapper::Run() {
+  *mMappingRequested = true;
   int iters = 150;
   double sampleRatio = 0.05;
   VectorXf modelScores = VectorXf::Zero(iters);
@@ -248,7 +249,7 @@ pcl::PointXYZ ExitMapper::FindExit() {
     PointCloud<PointXYZ>::Ptr rectModel(new PointCloud<PointXYZ>());
     pcl::PCDWriter writer;
     PointCloud<PointXYZ>::Ptr subcloud(new PointCloud<PointXYZ>());
-    subsample(cloud, subcloud, sampleRatio);
+    subsample(mCloud, subcloud, sampleRatio);
 
     PointCloud<PointXYZ>::Ptr ch(new PointCloud<PointXYZ>());
     pcl::ConvexHull<PointXYZ> ch2d;
@@ -273,7 +274,7 @@ pcl::PointXYZ ExitMapper::FindExit() {
   float avpBest{0};
   for (int i = 0; i < iters; i++) {
 
-    int score = scoreRect(models[i], cloud, avgPlusEps);
+    int score = scoreRect(models[i], mCloud, avgPlusEps);
     if (score > avpBest) {
       avpBest = score;
       avpBestRect = models[i];
@@ -281,14 +282,14 @@ pcl::PointXYZ ExitMapper::FindExit() {
   }
 
   PointCloud<PointXYZ>::Ptr outCloud(new PointCloud<PointXYZ>());
-  removeOnRectPoints(cloud, avpBestRect, outCloud);
+  removeOnRectPoints(mCloud, avpBestRect, outCloud);
 
   pcl::search::Search<pcl::PointXYZ>::Ptr tree(
       new pcl::search::KdTree<pcl::PointXYZ>);
   pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
   pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
   normal_estimator.setSearchMethod(tree);
-  normal_estimator.setInputCloud(cloud);
+  normal_estimator.setInputCloud(mCloud);
   normal_estimator.setKSearch(50);
   normal_estimator.compute(*normals);
 
@@ -297,7 +298,7 @@ pcl::PointXYZ ExitMapper::FindExit() {
   reg.setMaxClusterSize(1000000);
   reg.setSearchMethod(tree);
   reg.setNumberOfNeighbours(30);
-  reg.setInputCloud(cloud);
+  reg.setInputCloud(mCloud);
   // reg.setIndices (indices);
   reg.setInputNormals(normals);
   reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);
@@ -310,12 +311,24 @@ pcl::PointXYZ ExitMapper::FindExit() {
 
   cout << "saved best am model: " << avgPlusEps << " with score: " << avpBest
        << endl;
-  PointXYZ exitPoint = findExit(clusters, cloud, avpBestRect);
+  PointXYZ exitPoint = findExit(clusters, mCloud, avpBestRect);
   pcl::visualization::PCLVisualizer::Ptr viewer;
-  viewer = shapesVis(cloud, coloredCloud, avpBestRect, &exitPoint);
+  /* viewer = shapesVis(mCloud, coloredCloud, avpBestRect, &exitPoint);
   while (!viewer->wasStopped()) {
     viewer->spinOnce(100);
     std::this_thread::sleep_for(100ms);
-  }
+  } */
+  mExit = new Vector4f(0);
+  *mExit = exitPoint.getArray4fMap();
+  mRect = new MyRotatedRect();
+  *mRect = avpBestRect;
+  *mExitFound = true;
 }
-bool ExitMapper::ExitReady() { return true; }
+
+ExitMapper::~ExitMapper() { delete mExitFound; }
+ExitMapper::ExitMapper(std::atomic<int> *state) : mState(state) {
+  mCloud = PointCloud<PointXYZ>::Ptr(new PointCloud<PointXYZ>());
+  mExitFound = new bool(false);
+  mMappingRequested = new bool(false);
+}
+bool ExitMapper::FinishedMapping() { return *mExitFound; }

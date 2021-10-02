@@ -79,6 +79,7 @@ src/Viewer.cc
 src/TelloDispatcher.cc
 src/RotCalipers.cc
 src/MyRotatedRect.cc
+src/ExitMapper.cc
 )
 
 add_definitions(${PCL_DEFINITIONS})

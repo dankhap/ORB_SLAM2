@@ -5,20 +5,27 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 
+class MyRotatedRect;
+
 class ExitMapper {
 public:
-  ExitMapper();
+  ExitMapper(std::atomic<int> *state);
 
   void SetCloud(vector<ORB_SLAM2::MapPoint *> points);
   void Run();
-  pcl::PointXYZ FindExit();
-  bool ExitReady();
+  bool FinishedMapping();
+  bool MappingRequested();
+  Eigen::Vector4f *getExitPoint();
+  MyRotatedRect *getRoomRect();
+  ~ExitMapper();
 
 private:
-  bool exit_ready;
-  bool request_exit;
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
-  pcl::PointXYZ exit;
+  bool *mExitFound;
+  bool *mMappingRequested;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr mCloud;
+  Eigen::Vector4f *mExit;
+  MyRotatedRect *mRect;
+  std::atomic<int> *mState;
 };
 
 #endif /* EXITMAPPER_H */

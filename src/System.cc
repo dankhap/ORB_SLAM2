@@ -294,6 +294,8 @@ void System::DeactivateLocalizationMode() {
   mbDeactivateLocalizationMode = true;
 }
 
+bool System::IsMapping() { return !mbDeactivateLocalizationMode; }
+
 void System::Reset() {
   unique_lock<mutex> lock(mMutexReset);
   mbReset = true;
