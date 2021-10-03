@@ -35,6 +35,7 @@ class MyRotatedRect;
 enum Mode {
   CREATED = 0,
   READY,
+  LOCALIZING,
   EXPLORING,
   EXPLORE_COMPLETE,
   EXIT_MAPPING,
@@ -49,7 +50,6 @@ class TelloDispatcher {
 public:
   TelloDispatcher(ctello::Tello *tello, ORB_SLAM2::System *slam,
                   std::atomic<int> *state);
-  void addExplorationCommands();
   void startExitDiscovery();
   void Run();
   int getState() { return *mState; }
@@ -71,7 +71,7 @@ private:
   float mDestToTarget;
 
   void addNavigationCommands();
-  bool isArrived();
+  bool isArrived(cv::Mat cpos);
 };
 
 #endif

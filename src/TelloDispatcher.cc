@@ -27,6 +27,10 @@ TelloDispatcher::TelloDispatcher(Tello *tello, ORB_SLAM2::System *slam,
 }
 void TelloDispatcher::Run() {
   cout << "sending streamon command" << endl;
+  int exploreStep = 0;
+  int dirNum = 13;
+  int degInc = 360 / dirNum;
+  int totalSteps = dirNum + 4;
 
   mTello->SendCommand("streamon");
   while (!(mTello->ReceiveResponse()))
@@ -38,9 +42,9 @@ void TelloDispatcher::Run() {
   while (!(mTello->ReceiveResponse()))
     sleep(1);
   cout << "takeoff ok" << endl;
-  *mState = (int)Mode::READY;
-  cout << "land ok" << endl;
-
+  *mState = (int)Mode::LOCALIZING;
+  sendStateMessage(Mode::LOCALIZING);
+  cv::Mat cpos;
   string command;
   command.resize(100);
   bool finished = false;
@@ -75,6 +79,41 @@ void TelloDispatcher::Run() {
         sleep(1);
     }
     switch (*mState) {
+    case Mode::LOCALIZING:
+
+      if (messageQueue.empty()) {
+        if (mSLAM->mpTracker->mState != ORB_SLAM2::Tracking::OK) {
+          messageQueue.push("forward 20");
+          messageQueue.push("back 20");
+        } else {
+          cout << "Dispatcher: localization finished, moving to exploring"
+               << endl;
+          sendStateMessage(Mode::READY);
+        }
+      }
+      break;
+    case Mode::EXPLORING:
+      if (messageQueue.empty()) {
+        cout << "Dispatcher: ready, sending exploration commands, step: "
+             << exploreStep << endl;
+        if (exploreStep > totalSteps) {
+          sendStateMessage(Mode::EXPLORE_COMPLETE);
+        } else {
+          messageQueue.push("forward 35");
+          messageQueue.push("back 35");
+          ostringstream oss;
+          if (mSLAM->mpTracker->mState == ORB_SLAM2::Tracking::OK) {
+            oss << "cw " << degInc;
+            exploreStep++;
+          } else {
+            oss << "ccw " << degInc;
+            exploreStep--;
+          }
+          messageQueue.push(oss.str());
+        }
+      }
+      break;
+
     case Mode::FINISH:
       cout << "Dispatcher: reached FINISH state" << endl;
       finished = true;
@@ -82,7 +121,7 @@ void TelloDispatcher::Run() {
     case Mode::EXIT_MAPPING:
       cout << "Dispatcher: reached EXIT_MAPPING state" << endl;
       messageQueue.push("land");
-      sleep(3);
+      sleep(5);
       break;
 
     case Mode::EXIT_FOUND:
@@ -98,8 +137,8 @@ void TelloDispatcher::Run() {
       break;
     case Mode::RESTARTING:
       if (messageQueue.empty()) {
-        messageQueue.push("up 20");
-        messageQueue.push("down 20");
+        messageQueue.push("up 30");
+        messageQueue.push("down 30");
       }
       break;
     case Mode::NAVIGATING:
@@ -107,7 +146,12 @@ void TelloDispatcher::Run() {
       if (!messageQueue.empty()) {
         continue;
       }
-      if (isArrived()) {
+      while (cpos.empty()) {
+        cout << "localization not complete, waiting..." << endl;
+        cpos = mSLAM->mpTracker->mCurrentFrame.GetCameraCenter();
+        sleep(1);
+      }
+      if (isArrived(cpos)) {
         cout << "Dispatcher: arrived at destination!!!" << endl;
         sendStateMessage(Mode::FINISH);
       } else {
@@ -144,12 +188,13 @@ void TelloDispatcher::addNavigationCommands() {
     command = "ccw ";
   command += to_string((int)theta);
   messageQueue.push(command);
-  messageQueue.push("forward 30");
+  messageQueue.push("forward 200");
 }
 
-bool TelloDispatcher::isArrived() {
+bool TelloDispatcher::isArrived(cv::Mat cvpos) {
   Vector4f cpos(0);
-  cv::cv2eigen(mSLAM->mpTracker->mCurrentFrame.GetCameraCenter(), cpos);
+
+  cv::cv2eigen(cvpos, cpos);
   float dst = (*mExit - cpos).norm();
   cout << "Dispatcher: destination to target= " << dst << endl;
 
@@ -164,25 +209,6 @@ void TelloDispatcher::setExitMapping(MyRotatedRect *room,
                                      Eigen::Vector4f *exitPoint) {
   mRect = room;
   mExit = exitPoint;
-}
-
-void TelloDispatcher::addExplorationCommands() {
-
-  vector<string> commands{"takeoff", "up 5"};
-  int dirNum = 11;
-  int degInc = 360 / dirNum;
-  for (int i = 0; i < dirNum + 3; i++) {
-    commands.push_back("forward 30");
-    commands.push_back("back 30");
-    ostringstream oss;
-    oss << "cw " << degInc;
-    commands.push_back(oss.str());
-  }
-  for (string i : commands) {
-    messageQueue.push(i);
-  }
-  sendStateMessage(Mode::EXPLORE_COMPLETE);
-  *mState = (int)Mode::EXPLORING;
 }
 
 Eigen::Vector4f TelloDispatcher::getExitPos() {

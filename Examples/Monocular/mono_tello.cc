@@ -38,8 +38,8 @@
 #include <opencv2/videoio.hpp>
 
 const char *const TELLO_STREAM_URL{
-    "udp://0.0.0.0:11111?overrun_nonfatal=1&fifo_size=50000000"}; // real
-                                                                  // tello
+    "udp://0.0.0.0:11111?overrun_nonfatal=1&fifo_size=1000000"}; // real
+                                                                 // tello
 // "udp://0.0.0.0:11111?overrun_nonfatal=1"}; // real tello
 // info
 // const char *const TELLO_STREAM_URL{"udp://192.168.1.13:11111"};
@@ -55,7 +55,8 @@ using cv::VideoWriter;
 using cv::waitKey;
 
 bool handleState(int state, ExitMapper *mapper, TelloDispatcher *oDispatcher,
-                 ORB_SLAM2::System &SLAM, bool gotFrame, VideoCapture **cap) {
+                 ORB_SLAM2::System &SLAM, bool gotFrame, VideoCapture **cap,
+                 VideoWriter **vid) {
   bool taskFinished = false;
   std::thread *mptMapper;
   MyRotatedRect *room;
@@ -64,7 +65,7 @@ bool handleState(int state, ExitMapper *mapper, TelloDispatcher *oDispatcher,
   switch (state) {
   case Mode::READY:
     cout << "Main: ready, sending exploration commands..." << endl;
-    oDispatcher->addExplorationCommands();
+    oDispatcher->sendStateMessage(Mode::EXPLORING);
     break;
   case Mode::EXPLORE_COMPLETE:
     cout << "Main: exploration finished, calculating map" << endl;
@@ -84,6 +85,12 @@ bool handleState(int state, ExitMapper *mapper, TelloDispatcher *oDispatcher,
       (*cap)->release();
       delete *cap;
       *cap = nullptr;
+      if (*vid != nullptr) {
+        cout << "Main: saving exploration video" << endl;
+        (*vid)->release();
+        delete *vid;
+        *vid = nullptr;
+      }
     }
     if (mapper->FinishedMapping()) {
       cout << "Main: exit found, navigating..." << endl;
@@ -168,8 +175,12 @@ int main(int argc, char **argv) {
   capture->set(cv::CAP_PROP_FRAME_WIDTH, 640);
   int frame_width = 640;
   int frame_height = 480;
-  /* VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M', 'J', 'P',
-     'G'), 30, cv::Size(frame_width, frame_height)); */
+  /* VideoWriter *video = new VideoWriter(
+      "explore_video.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30,
+      cv::Size(frame_width, frame_height)); */
+
+  VideoWriter *video = nullptr;
+
   cout << endl << "-------" << endl;
   cout << "Start processing sequence ... requested " << frame_width << " x "
        << frame_height << endl;
@@ -181,15 +192,24 @@ int main(int argc, char **argv) {
   SLAM.mpTracker->mlpReferences.push_back(NULL);
   SLAM.mpTracker->mlFrameTimes.push_back(0.0);
   SLAM.mpTracker->mlbLost.push_back(true);
+
+  auto microsecondsUTC =
+      std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::system_clock::now().time_since_epoch())
+          .count();
+  double tframe = microsecondsUTC / 1000000.0;
+  int i = 0;
+
   // Wait for first frame
   do {
     (*capture) >> im;
   } while (im.empty());
   bool gotFrame = true;
   while (!taskFinished) {
+
+    i++;
     // Read image from file
     if (capture != nullptr) {
-
       (*capture) >> im;
     }
     gotFrame = !im.empty();
@@ -197,17 +217,14 @@ int main(int argc, char **argv) {
 
       cv::Mat sim;
       cv::resize(im, sim, cv::Size(frame_width, frame_height));
-
-      // video.write(im);
+      if (video != nullptr) {
+        video->write(im);
+      }
       std::chrono::steady_clock::time_point t1 =
           std::chrono::steady_clock::now();
-      auto microsecondsUTC =
-          std::chrono::duration_cast<std::chrono::microseconds>(
-              std::chrono::system_clock::now().time_since_epoch())
-              .count();
-      double tframe = microsecondsUTC / 1000000.0;
+
       // Pass the image to the SLAM system
-      SLAM.TrackMonocular(sim, tframe);
+      SLAM.TrackMonocular(sim, tframe + i * 0.04);
       std::chrono::steady_clock::time_point t2 =
           std::chrono::steady_clock::now();
 
@@ -218,8 +235,8 @@ int main(int argc, char **argv) {
       vTimesTrack.push_back(ttrack);
     }
     int cState = oDispatcher->getState();
-    taskFinished =
-        handleState(cState, mapper, oDispatcher, SLAM, gotFrame, &capture);
+    taskFinished = handleState(cState, mapper, oDispatcher, SLAM, gotFrame,
+                               &capture, &video);
   }
 
   // Stop all threads
