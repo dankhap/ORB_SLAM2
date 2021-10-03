@@ -13,6 +13,32 @@
 				"externalConsole": false,
 				"stopAtEntry": true
 			}
+		},
+		"testpoints": {
+			"adapter": "vscode-cpptools",
+			"configuration": {
+				"request": "launch",
+				"program": "${workspaceRoot}/Examples/Monocular/test_room",
+				"args": [
+					"${workspaceRoot}/Vocabulary/ORBvoc.bin",
+					"${workspaceRoot}/Examples/Monocular/TUM1.yaml",
+					"true"
+				],
+				"externalConsole": false,
+				"stopAtEntry": true
+			}
+		},
+		"pycloud: Launch": {
+			"adapter": "debugpy",
+			"configuration": {
+				"name": "pycloud: Launch",
+				"type": "python",
+				"python": "/home/daniel/anaconda3/bin/python",
+				"request": "launch",
+				"program": "${workspaceRoot}/Examples/Monocular/analyze_cloud.py",
+				"externalConsole": false,
+				"stopAtEntry": false
+			}
 		}
 	}
 }

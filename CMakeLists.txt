@@ -28,7 +28,8 @@ else()
 endif()
 
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
-
+set(VTK_DIR /usr/local/lib/cmake/vtk-9.0/)
+find_package(VTK REQUIRED)
 find_package(OpenCV 4.3 QUIET)
 if(NOT OpenCV_FOUND)
    find_package(OpenCV 2.4.3 QUIET)
@@ -37,6 +38,7 @@ if(NOT OpenCV_FOUND)
    endif()
 endif()
 #find_package(Eigen3 3.1.0 REQUIRED)
+find_package(PCL 1.2 REQUIRED)
 find_package(Pangolin REQUIRED)
 find_package(Boost  1.54.0  	     # Minimum or EXACT version e.g. 1.36.0
   REQUIRED             					# Fail with error if Boost is not found
@@ -48,8 +50,10 @@ ${PROJECT_SOURCE_DIR}
 ${PROJECT_SOURCE_DIR}/include
 ${EIGEN3_INCLUDE_DIR}
 ${Pangolin_INCLUDE_DIRS}
+${PCL_INCLUDE_DIRS}
 )
 
+# link_directories(${PCL_LIBRARY_DIRS})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
 add_library(${PROJECT_NAME} SHARED
@@ -73,7 +77,12 @@ src/Sim3Solver.cc
 src/Initializer.cc
 src/Viewer.cc
 src/TelloDispatcher.cc
+src/RotCalipers.cc
+src/MyRotatedRect.cc
+src/ExitMapper.cc
 )
+
+add_definitions(${PCL_DEFINITIONS})
 
 target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}
@@ -81,6 +90,7 @@ ${EIGEN3_LIBS}
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${Pangolin_LIBRARIES}
 ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
+${PCL_LIBRARIES}
 ${Boost_LIBRARIES}
 /usr/local/lib/libctello.so
 )
@@ -104,6 +114,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Monocular)
 add_executable(mono_tum
 Examples/Monocular/mono_tum.cc)
 target_link_libraries(mono_tum ${PROJECT_NAME})
+
+
+
+add_executable(mono_phone
+Examples/Monocular/mono_phone.cc)
+target_link_libraries(mono_phone ${PROJECT_NAME})
+
+add_executable(test_room
+Examples/Monocular/test_room.cc)
+target_link_libraries(test_room ${PROJECT_NAME})
 
 add_executable(mono_tello
 Examples/Monocular/mono_tello.cc)

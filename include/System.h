@@ -126,6 +126,8 @@ public:
   // http://www.cvlibs.net/datasets/kitti/eval_odometry.php
   void SaveTrajectoryKITTI(const string &filename);
 
+  bool IsMapping();
+
   // Tracker. It receives a frame and computes the associated camera pose.
   // It also decides when to insert a new keyframe, create some new MapPoints
   // and performs relocalization if tracking fails.
